@@ -67,6 +67,10 @@ class Settings(Scene):
         
     
     def handle_event(self, event: pygame.Event):
+        if event.type == pygame_gui.UI_BUTTON_PRESSED:
+            if event.ui_element == self.return_btn:
+                # Switch back to start menu
+                self.scene_manager.change_scene("start")
         self.ui_manager.process_events(event)
     
     def update(self, dt: float):

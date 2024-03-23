@@ -83,6 +83,7 @@ class SceneManager:
         else:
             self.curr_scene = scenes[self.default_scene]
         
+        self.prev_scene:Scene|None = None
         self.handle_event_during_transition = handle_event_during_transition
         
         self._transitioning:bool = False
@@ -101,7 +102,7 @@ class SceneManager:
         self._running_transitions.append(transition)
     
     def change_scene(self, scene_key:str):
-        '''Change to another scene
+        '''Change to another scene, runs exit and enter transitions
         
         Parameters
         -----------
@@ -109,21 +110,19 @@ class SceneManager:
             The key of the scene to switch to'''
         if scene_key not in self.scenes.keys():
             raise ValueError(f"Scene {scene_key} not in scenes")
-        prev_scene = self.curr_scene
-        if prev_scene:
+        self.prev_scene = self.curr_scene
+        if self.prev_scene:
             try:
-                exit_transition:Transition = prev_scene.__getattribute__("_exit_transition")
+                exit_transition:Transition = self.prev_scene.__getattribute__("_exit_transition")
             except:
-                print("no exit transition")
                 pass
             else:
-                self.start_transition(exit_transition, prev_scene)
+                self.start_transition(exit_transition, self.prev_scene)
         
         self.curr_scene = self.scenes[scene_key]
         try:
             enter_transition:Transition = self.curr_scene.__getattribute__("_enter_transition")
         except:
-            print("no enter transition")
             pass
         else:
             self.start_transition(enter_transition, self.curr_scene)
@@ -142,11 +141,25 @@ class SceneManager:
             return
         self.curr_scene.handle_event(event)
     
+    def _transition_get_priority(self, transition:Transition):
+        if transition == self.curr_scene:
+            return 3
+        elif transition == self.prev_scene:
+            return 2
+        else:
+            return 1
+    
+    def _sort_running_transitions(self):
+        self._running_transitions.sort(key=lambda transition: self._transition_get_priority(transition))
+    
+    def get_transitioning_scenes(self):
+        return [t.scene for t in self._running_transitions if t.scene]
+    
     def update(self, dt:float):
         if not self.curr_scene:
             return
-        
         curr_scene_transitioning = False
+        prev_scene_transitioning = False
         if self._transitioning:
             for transition in self._running_transitions:
                 transition.update(dt)
@@ -162,11 +175,13 @@ class SceneManager:
                         scene.update(dt)
                 if self.curr_scene == scene:
                     curr_scene_transitioning = True
+                elif self.prev_scene == scene:
+                    prev_scene_transitioning = True
         
-        if curr_scene_transitioning:
-            return
-
-        self.curr_scene.update(dt)
+        if not prev_scene_transitioning and self.prev_scene:
+            self.prev_scene.update(dt)
+        if not curr_scene_transitioning:
+            self.curr_scene.update(dt)
     
     def draw(self, screen:pygame.Surface):
         screen.fill((0,0,0))
@@ -174,13 +189,15 @@ class SceneManager:
             return
         
         if self._transitioning:
-            curr_scene_transitioning = False
+            transitioning_scenes = self.get_transitioning_scenes()
+            if self.prev_scene and self.prev_scene not in transitioning_scenes:
+                self.prev_scene.draw(screen)
+            if self.curr_scene not in transitioning_scenes:
+                self.curr_scene.draw(screen)
+                
             for transition in self._running_transitions:
                 transition.draw(screen)
-                if self.curr_scene == transition.scene:
-                    curr_scene_transitioning = True
-            if curr_scene_transitioning:
-                return
+            return
         self.curr_scene.draw(screen)
         
        

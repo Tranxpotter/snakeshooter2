@@ -119,42 +119,42 @@ class Transition:
         
         #Position shifting init
         start_position = curr_section.get("start_position")
-        if not start_position:
+        if start_position is None:
             start_position = self._curr_position
         else:
             self._curr_position = start_position
         end_position = curr_section.get("end_position")
-        if end_position:
+        if end_position is not None:
             self._curr_position_shift_rate = self.get_change_rate_vec(start_position, end_position, duration)
         
         #Size changing init
         start_size = curr_section.get("start_size")
-        if not start_size:
+        if start_size is None:
             start_size = self._curr_size
         else:
             self._curr_size = start_size
         end_size = curr_section.get("end_size")
-        if end_size:
+        if end_size is not None:
             self._curr_size_change_rate = self.get_change_rate_vec(start_size, end_size, duration)
         
         #angle changing init
         start_angle = curr_section.get("start_angle")
-        if not start_angle:
+        if start_angle is None:
             start_angle = self._curr_angle
         else:
             self._curr_angle = start_angle
         end_angle = curr_section.get("end_angle")
-        if end_angle:
+        if end_angle is not None:
             self._curr_angle_change_rate = self.get_change_rate(start_angle, end_angle, duration)
         
         #transparency changing init
         start_transparency = curr_section.get("start_transparency")
-        if not start_transparency:
+        if start_transparency is None:
             start_transparency = self._curr_transparency
         else:
             self._curr_transparency = start_transparency
         end_transparency = curr_section.get("end_transparency")
-        if end_transparency:
+        if end_transparency is not None:
             self._curr_transparency_change_rate = self.get_change_rate(start_transparency, end_transparency, duration)
     
     def _update_curr_values(self, time:float):

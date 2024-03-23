@@ -181,7 +181,6 @@ class SceneManager:
                     curr_scene_transitioning = True
             if curr_scene_transitioning:
                 return
-        print("Not curr scene transitioning")
         self.curr_scene.draw(screen)
         
        

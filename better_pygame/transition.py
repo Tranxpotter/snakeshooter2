@@ -72,6 +72,7 @@ class Transition:
         self.scene_size = scene_size
         self._curr_size = scene_size
         self.timer:int|float = self.sections[self.curr_section_index]["duration"]
+        self.on_change_section()
         self._running = True
     
     def terminate(self):
@@ -95,7 +96,7 @@ class Transition:
     
     @staticmethod
     def get_change_rate_vec(start_vec:tuple[int|float, int|float], end_vec:tuple[int|float, int|float], duration:int|float):
-        return vecs_divide(vecs_subtract(end_vec, start_vec), (duration, duration))
+        return tup_divide(tup_subtract(end_vec, start_vec), (duration, duration))
 
     @staticmethod
     def get_change_rate(start_val:int|float, end_val:int|float, duration:int|float):
@@ -120,6 +121,8 @@ class Transition:
         start_position = curr_section.get("start_position")
         if not start_position:
             start_position = self._curr_position
+        else:
+            self._curr_position = start_position
         end_position = curr_section.get("end_position")
         if end_position:
             self._curr_position_shift_rate = self.get_change_rate_vec(start_position, end_position, duration)
@@ -128,6 +131,8 @@ class Transition:
         start_size = curr_section.get("start_size")
         if not start_size:
             start_size = self._curr_size
+        else:
+            self._curr_size = start_size
         end_size = curr_section.get("end_size")
         if end_size:
             self._curr_size_change_rate = self.get_change_rate_vec(start_size, end_size, duration)
@@ -136,6 +141,8 @@ class Transition:
         start_angle = curr_section.get("start_angle")
         if not start_angle:
             start_angle = self._curr_angle
+        else:
+            self._curr_angle = start_angle
         end_angle = curr_section.get("end_angle")
         if end_angle:
             self._curr_angle_change_rate = self.get_change_rate(start_angle, end_angle, duration)
@@ -144,15 +151,17 @@ class Transition:
         start_transparency = curr_section.get("start_transparency")
         if not start_transparency:
             start_transparency = self._curr_transparency
+        else:
+            self._curr_transparency = start_transparency
         end_transparency = curr_section.get("end_transparency")
         if end_transparency:
             self._curr_transparency_change_rate = self.get_change_rate(start_transparency, end_transparency, duration)
     
     def _update_curr_values(self, time:float):
         if self._curr_position_shift_rate:
-            self._curr_position = vecs_add(self._curr_position, vecs_multiply(self._curr_position_shift_rate, (time, time)))
+            self._curr_position = tup_add(self._curr_position, tup_multiply(self._curr_position_shift_rate, (time, time)))
         if self._curr_size_change_rate:
-            self._curr_size = vecs_add(self._curr_size, vecs_multiply(self._curr_size_change_rate, (time, time)))
+            self._curr_size = tup_add(self._curr_size, tup_multiply(self._curr_size_change_rate, (time, time)))
         if self._curr_angle_change_rate:
             self._curr_angle += self._curr_angle_change_rate * time
             if self._curr_angle > 360:
@@ -166,10 +175,11 @@ class Transition:
         self.timer -= dt
         if self.timer < 0:
             section_time = self.timer + dt
+            self.timer += section_time
         else:
             section_time = dt
         self._update_curr_values(section_time)
-        self.timer += section_time
+        
         
         
         while self.timer < 0:
@@ -243,7 +253,7 @@ class LinearFadeIn(Transition):
         sections = [
             {
                 "start_transparency": 0,
-                "end_transparency": 1,
+                "end_transparency": 255,
                 "duration": duration
             }
         ]
@@ -253,7 +263,7 @@ class LinearFadeOut(Transition):
     def __init__(self, duration, object_id: str | None = None) -> None:
         sections = [
             {
-                "start_transparency": 1,
+                "start_transparency": 255,
                 "end_transparency": 0,
                 "duration": duration
             }

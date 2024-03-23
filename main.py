@@ -13,11 +13,12 @@ def main():
     dt = 0
     
     start_menu = StartMenu(SCREEN_SIZE)
-    # start_menu.set_enter_transition(better_pygame.transition.LinearFadeIn(2))
-    # start_menu.set_exit_transition(better_pygame.transition.LinearFadeOut(2))
+    start_menu.set_enter_transition(better_pygame.transition.LinearFadeIn(2))
+    start_menu.set_exit_transition(better_pygame.transition.LinearFadeOut(1))
     
     settings = Settings(SCREEN_SIZE)
     settings.set_enter_transition(better_pygame.transition.LinearSlideDownEnter(SCREEN_SIZE, 2))
+    settings.set_transition_require_update(True)
     
     
     scene_manager = SceneManager(SCREEN_SIZE, 

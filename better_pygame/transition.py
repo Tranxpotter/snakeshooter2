@@ -238,9 +238,27 @@ class LinearSlideDownEnter(Transition):
         ]
         super().__init__(sections, object_id)
 
+class LinearFadeIn(Transition):
+    def __init__(self, duration, object_id: str | None = None) -> None:
+        sections = [
+            {
+                "start_transparency": 0,
+                "end_transparency": 1,
+                "duration": duration
+            }
+        ]
+        super().__init__(sections, object_id)
 
-
-
+class LinearFadeOut(Transition):
+    def __init__(self, duration, object_id: str | None = None) -> None:
+        sections = [
+            {
+                "start_transparency": 1,
+                "end_transparency": 0,
+                "duration": duration
+            }
+        ]
+        super().__init__(sections, object_id)
 
 
 

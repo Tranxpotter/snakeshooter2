@@ -24,6 +24,9 @@ class Scene(ABC):
         
         def handle_event(self, event):
             if event.type == '''
+    
+    def __init__(self, scene_manager) -> None:
+        self.scene_manager = scene_manager
     @abstractmethod
     def handle_event(self, event:pygame.Event):...
     
@@ -63,7 +66,7 @@ class SceneManager:
         self.screen_size = screen_size
         self.scenes = scenes
         for value in self.scenes.values():
-            value._scene_manager = self
+            value.scene_manager = self
         if not default_scene:
             keys = list(scenes.keys())
             if len(keys) > 0:
@@ -85,6 +88,13 @@ class SceneManager:
         self._transitioning:bool = False
         self._running_transitions:list[Transition] = []
     
+    def add_scene(self, key:str, scene:Scene):
+        """Add a scene to the manager"""
+        if key in self.scenes.keys():
+            raise KeyError(f"Scene with key {key} already exists")
+        scene.scene_manager = self
+        self.scenes[key] = scene
+    
     def start_transition(self, transition:Transition, scene:Scene):
         transition.start(scene, self.screen_size)
         self._transitioning = True
@@ -104,6 +114,7 @@ class SceneManager:
             try:
                 exit_transition:Transition = prev_scene.__getattribute__("_exit_transition")
             except:
+                print("no exit transition")
                 pass
             else:
                 self.start_transition(exit_transition, prev_scene)
@@ -112,6 +123,7 @@ class SceneManager:
         try:
             enter_transition:Transition = self.curr_scene.__getattribute__("_enter_transition")
         except:
+            print("no enter transition")
             pass
         else:
             self.start_transition(enter_transition, self.curr_scene)
@@ -157,6 +169,7 @@ class SceneManager:
         self.curr_scene.update(dt)
     
     def draw(self, screen:pygame.Surface):
+        screen.fill((0,0,0))
         if not self.curr_scene:
             return
         
@@ -168,7 +181,7 @@ class SceneManager:
                     curr_scene_transitioning = True
             if curr_scene_transitioning:
                 return
-
+        print("Not curr scene transitioning")
         self.curr_scene.draw(screen)
         
        

@@ -1,9 +1,10 @@
-from typing import Literal
+from typing import Literal, Sequence
 
 import pygame
 
 from ._constants import ON_TRANSITION_END
 from .utils import *
+from .section import Section
 
 class Transition:
     '''Base of all scene transitions
@@ -19,26 +20,27 @@ class Transition:
     ----------
     on transition end - type: ON_TRANSITION_END, element: Transition, object_id:str|None
     '''
-    def __init__(self, sections:list[dict] = [], object_id:str|None = None) -> None:
+    def __init__(self, sections:Sequence[dict|Section] = [], object_id:str|None = None) -> None:
         '''
         Parameters
         ------------
-        sections: list[dict]
+        sections: list[dict|Section]
             A list of different sections at different durations of the transition
         
-        sections
-        ---------
+        sections dict
+        --------------
         A section consist of many things, listed below (`key`: `value_type` - description)\n
         must-have -- `duration`: `int|float` - How long this section lasts\n
         `start_position`: `tuple[int|float, int|float]` - position of the scene at the start of the section\n
         `end_position`: `tuple[int|float, int|float]` - position of the scene at the end of the section\n
         `start_size`: `tuple[int|float, int|float]` - size of the scene at the start of the section\n
         `end_size`: `tuple[int|float, int|float]` - size of the scene at the end of the section\n
-        `start_angle`: `tuple[int|float, int|float]` - angle of rotation of the scene at the start of the section\n
-        `end_angle`: `tuple[int|float, int|float]` - angle of rotation of the scene at the end of the section, 
+        `start_angle`: `int|float` - angle of rotation of the scene at the start of the section\n
+        `end_angle`: `int|float` - angle of rotation of the scene at the end of the section, 
             bigger than start for clockwise, smaller than start for anti-clockwise\n
-        `start_transparency`: `tuple[int|float, int|float]` - transparency of the scene at the start of the section, 0-255\n
-        `end_transparency`: `tuple[int|float, int|float]` - transparency of the scene at the end of the section, 0-255\n
+        `rotation_origin`: `tuple[int, int]` - x, y coordinates of the origin of rotation, default is center\n
+        `start_transparency`: `int|float` - transparency of the scene at the start of the section, 0-255\n
+        `end_transparency`: `int|float` - transparency of the scene at the end of the section, 0-255\n
         If any of the start values are omitted, it will default to the previous section end value.\n
         Angles can be bigger than 360, for example, start_angle=0 end_engle=720 gives you 2 clockwise rotations.
         '''
@@ -49,7 +51,7 @@ class Transition:
         self._running = False
         
         self._curr_position = (0, 0)
-        self._curr_position_shift_rate = None
+        self._curr_position_change_rate = None
         self._curr_size_change_rate = None
         self._curr_angle = 0
         self._curr_angle_change_rate = None
@@ -71,8 +73,8 @@ class Transition:
         self.scene = scene
         self.scene_size = scene_size
         self._curr_size = scene_size
-        self.timer:int|float = self.sections[self.curr_section_index]["duration"]
-        self.on_change_section()
+        
+        self._on_change_section()
         self._running = True
     
     def terminate(self):
@@ -85,7 +87,7 @@ class Transition:
         self._running = False
         
         self._curr_position = (0, 0)
-        self._curr_position_shift_rate = None
+        self._curr_position_change_rate = None
         self._curr_size_change_rate = None
         self._curr_angle = 0
         self._curr_angle_change_rate = None
@@ -95,71 +97,69 @@ class Transition:
         pygame.event.post(event)
     
     @staticmethod
-    def get_change_rate_vec(start_vec:tuple[int|float, int|float], end_vec:tuple[int|float, int|float], duration:int|float):
-        return tup_divide(tup_subtract(end_vec, start_vec), (duration, duration))
+    def get_change_rate_tup(start_tup:tuple[int|float, int|float], end_tup:tuple[int|float, int|float], duration:int|float):
+        return tup_divide(tup_subtract(end_tup, start_tup), (duration, duration))
 
     @staticmethod
     def get_change_rate(start_val:int|float, end_val:int|float, duration:int|float):
         return (end_val - start_val) / duration
     
-    def on_change_section(self):
+    def _set_change_rate(self, curr_section:dict|Section, attribute:Literal["position","size","angle","transparency"], duration):
+        '''Internal set change rate when section changes'''
+        if isinstance(curr_section, Section):
+            start_val = curr_section.__getattribute__("start_"+attribute)
+        else:
+            start_val = curr_section.get("start_"+attribute)
+        if start_val is None:
+            start_val = self.__getattribute__("_curr_"+attribute)
+        else:
+            self.__setattr__("_curr_"+attribute, start_val)
+            
+        if isinstance(curr_section, Section):
+            end_val = curr_section.__getattribute__("end_"+attribute)
+        else:
+            end_val = curr_section.get("end_"+attribute)
+        if end_val is not None:
+            if attribute == "position" or attribute == "size":
+                self.__setattr__("_curr_"+attribute+"_change_rate", Transition.get_change_rate_tup(start_val, end_val, duration))
+            else:
+                self.__setattr__("_curr_"+attribute+"_change_rate", Transition.get_change_rate(start_val, end_val, duration))
+        
+        
+    
+    
+    def _on_change_section(self):
+        '''Internal method called when section changes'''
         curr_section = self.sections[self.curr_section_index]
         
-        duration = curr_section.get("duration")
+        if isinstance(curr_section, Section):
+            self.timer:int|float = curr_section.duration
+            duration = curr_section.duration
+            curr_section.on_start()
+        else:
+            self.timer:int|float = curr_section["duration"]
+            duration = curr_section["duration"]
+        
         if duration is None:
             raise ValueError(f"Duration missing from Transition section, index-{self.curr_section_index}")
         
         #Defaulting current values
-        self._curr_position_shift_rate = None
+        self._curr_position_change_rate = None
         self._curr_size_change_rate = None
         self._curr_angle_change_rate = None
         self._curr_transparency_change_rate = None
         
-        
-        
-        #Position shifting init
-        start_position = curr_section.get("start_position")
-        if start_position is None:
-            start_position = self._curr_position
-        else:
-            self._curr_position = start_position
-        end_position = curr_section.get("end_position")
-        if end_position is not None:
-            self._curr_position_shift_rate = self.get_change_rate_vec(start_position, end_position, duration)
-        
-        #Size changing init
-        start_size = curr_section.get("start_size")
-        if start_size is None:
-            start_size = self._curr_size
-        else:
-            self._curr_size = start_size
-        end_size = curr_section.get("end_size")
-        if end_size is not None:
-            self._curr_size_change_rate = self.get_change_rate_vec(start_size, end_size, duration)
-        
-        #angle changing init
-        start_angle = curr_section.get("start_angle")
-        if start_angle is None:
-            start_angle = self._curr_angle
-        else:
-            self._curr_angle = start_angle
-        end_angle = curr_section.get("end_angle")
-        if end_angle is not None:
-            self._curr_angle_change_rate = self.get_change_rate(start_angle, end_angle, duration)
-        
-        #transparency changing init
-        start_transparency = curr_section.get("start_transparency")
-        if start_transparency is None:
-            start_transparency = self._curr_transparency
-        else:
-            self._curr_transparency = start_transparency
-        end_transparency = curr_section.get("end_transparency")
-        if end_transparency is not None:
-            self._curr_transparency_change_rate = self.get_change_rate(start_transparency, end_transparency, duration)
+        # Set change rates for position, size, angle and transparency
+        self._set_change_rate(curr_section, "position", duration)
+        self._set_change_rate(curr_section, "size", duration)
+        self._set_change_rate(curr_section, "angle", duration)
+        self._set_change_rate(curr_section, "transparency", duration)
+    
     
     def _update_curr_values(self, time:float):
-        if self._curr_position_shift_rate:
-            self._curr_position = tup_add(self._curr_position, tup_multiply(self._curr_position_shift_rate, (time, time)))
+        '''Internal method to update current values based on change rates'''
+        if self._curr_position_change_rate:
+            self._curr_position = tup_add(self._curr_position, tup_multiply(self._curr_position_change_rate, (time, time)))
         if self._curr_size_change_rate:
             self._curr_size = tup_add(self._curr_size, tup_multiply(self._curr_size_change_rate, (time, time)))
         if self._curr_angle_change_rate:
@@ -172,46 +172,56 @@ class Transition:
             self._curr_transparency += self._curr_transparency_change_rate * time
     
     def update(self, dt:float):
+        '''Update transition for each frame'''
         self.timer -= dt
         if self.timer < 0:
             section_time = self.timer + dt
-            self.timer += section_time
         else:
             section_time = dt
         self._update_curr_values(section_time)
         
-        
-        
-        while self.timer < 0:
+        if self.timer < 0:
+            #When current section ends
+            curr_section = self.sections[self.curr_section_index]
+            if isinstance(curr_section, Section):
+                curr_section.on_end()
             self.curr_section_index += 1
             if self.curr_section_index >= len(self.sections):
+                #All sections end
                 self._running = False
                 self.scene = None
                 self.curr_section_index -= 1
                 event = pygame.Event(ON_TRANSITION_END, {"element":self, "object_id":self.object_id})
                 pygame.event.post(event)
-                break
-            next_section = self.sections[self.curr_section_index]
-            next_section_duration = next_section["duration"]
-            
-            if next_section_duration >= self.timer:
-                next_section_time = -self.timer
-                self.timer = 0
-            else:
-                next_section_time = next_section_duration
-                self.timer += next_section_duration
-            
-            self._update_curr_values(next_section_time)
+                
+            #Change to next section and update with the remaining unused time of the previous section
+            self._on_change_section()
+            self.update(dt - section_time)
     
     def draw(self, screen:pygame.Surface):
+        '''Draw the transitioning scene on the screen'''
         if not self.scene:
             return
         surf = transparent_surface(self.scene_size)
         self.scene.draw(surf)
         surf = pygame.transform.scale(surf, self._curr_size)
         surf = pygame.transform.rotate(surf, self._curr_angle % 360)
-        surf.set_alpha(self._curr_transparency)
-        screen.blit(surf, self._curr_position)
+        
+        curr_section = self.sections[self.curr_section_index]
+        rotation_origin = curr_section.rotation_origin if isinstance(curr_section, Section) else curr_section.get("rotation_origin")
+        if rotation_origin is None:
+            #Set rotation origin to center
+            rotation_origin = tup_divide(self._curr_size, (2, 2))
+        origin_to_size_ratio = tup_divide(rotation_origin, self.scene_size)
+        
+        rotated_size = surf.get_size()
+        if rotated_size != self._curr_size:
+            # Reposition the surface to keep rotation origin at center
+            position_shift = tup_round(tup_multiply(tup_subtract((rotated_size[0], rotated_size[1]), self._curr_size), origin_to_size_ratio))
+        else:
+            position_shift = (0,0)
+        surf.set_alpha(int(self._curr_transparency))
+        screen.blit(surf, tup_subtract(self._curr_position, position_shift))
 
 
 
@@ -222,34 +232,43 @@ class Transition:
 #             ):
 #     ...
 
+enter_direction_match = {"up":(0, 1), "down":(0, -1), "left":(1, 0), "right":(-1, 0)}
+get_enter_start_pos = lambda direction, screen_size: tup_multiply(enter_direction_match[direction], screen_size)
 
+exit_direction_match = {"up":(0, -1), "down":(0, 1), "left":(-1, 0), "right":(1, 0)}
+get_exit_end_pos = lambda direction, screen_size: tup_multiply(exit_direction_match[direction], screen_size)
 
-
-class LinearSlideDownExit(Transition):
-    def __init__(self, screen_size:tuple[int, int], duration:float, object_id: str | None = None) -> None:
+class LinearSlideEnter(Transition):
+    def __init__(self, duration, direction:Literal["up", "down", "left", "right"], screen_size:tuple[int, int], object_id: str | None = None) -> None:
+        start_pos = get_enter_start_pos(direction, screen_size)
+        
         sections = [
             {
-                "start_position":(0, 0),
-                "end_position":(0, screen_size[1]),
-                "duration":duration
+                "start_position": start_pos,
+                "end_position": (0, 0),
+                "duration": duration
             }
         ]
+        
         super().__init__(sections, object_id)
 
-
-class LinearSlideDownEnter(Transition):
-    def __init__(self, screen_size:tuple[int, int], duration:float, object_id: str | None = None) -> None:
+class LinearSlideExit(Transition):
+    def __init__(self, duration, direction:Literal["up", "down", "left", "right"], screen_size:tuple[int, int], object_id: str | None = None) -> None:
+        end_pos = get_exit_end_pos(direction, screen_size)
+        
         sections = [
             {
-                "start_position":(0, -screen_size[1]),
-                "end_position":(0, 0),
-                "duration":duration
+                "start_position": (0, 0),
+                "end_position": end_pos,
+                "duration": duration
             }
         ]
+        
         super().__init__(sections, object_id)
+
 
 class LinearFadeIn(Transition):
-    def __init__(self, duration, object_id: str | None = None) -> None:
+    def __init__(self, duration:float, object_id: str | None = None) -> None:
         sections = [
             {
                 "start_transparency": 0,
@@ -260,7 +279,7 @@ class LinearFadeIn(Transition):
         super().__init__(sections, object_id)
 
 class LinearFadeOut(Transition):
-    def __init__(self, duration, object_id: str | None = None) -> None:
+    def __init__(self, duration:float, object_id: str | None = None) -> None:
         sections = [
             {
                 "start_transparency": 255,
@@ -270,8 +289,48 @@ class LinearFadeOut(Transition):
         ]
         super().__init__(sections, object_id)
 
+class SpinEnter(Transition):
+    def __init__(self, duration:float, direction:Literal["up", "down", "left", "right"], screen_size:tuple[int,int], object_id: str | None = None) -> None:
+        start_pos = get_enter_start_pos(direction, screen_size)
+        sections = [
+            {
+                "start_position":start_pos,
+                "end_position":(0,0),
+                "start_angle": 0,
+                "end_angle": 360,
+                "duration": duration
+            }
+        ]
+        super().__init__(sections, object_id)
 
+class SpinExit(Transition):
+    def __init__(self, duration:float, direction:Literal["up", "down", "left", "right"], screen_size:tuple[int,int], object_id: str | None = None) -> None:
+        end_pos = get_exit_end_pos(direction, screen_size)
+        sections = [
+            {
+                "start_position":(0, 0),
+                "end_position":end_pos,
+                "start_angle": 0,
+                "end_angle": 360,
+                "duration": duration
+            }
+        ]
+        super().__init__(sections, object_id)
 
+class SpinShrinkExit(Transition):
+    def __init__(self, duration:float, screen_size:tuple[int,int], object_id: str | None = None) -> None:
+        sections = [
+            {
+                "start_position":(0,0),
+                "end_position":(screen_size[0]//2,screen_size[1]//2),
+                "start_size":screen_size,
+                "end_size":(0,0),
+                "start_angle":0,
+                "end_angle":360,
+                "duration":duration
+            }
+        ]
+        super().__init__(sections, object_id)
 
 
 

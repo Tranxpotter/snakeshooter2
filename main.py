@@ -17,7 +17,8 @@ def main():
     start_menu.set_exit_transition(better_pygame.transition.LinearFadeOut(3))
     
     settings = Settings(SCREEN_SIZE)
-    settings.set_enter_transition(better_pygame.transition.LinearSlideDownEnter(SCREEN_SIZE, 3))
+    settings.set_enter_transition(better_pygame.transition.SpinEnter(3, "left", SCREEN_SIZE))
+    settings.set_exit_transition(better_pygame.transition.SpinShrinkExit(3, SCREEN_SIZE))
     settings.set_transition_require_update(True)
     
     
